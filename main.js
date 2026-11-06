@@ -14,22 +14,34 @@ const GRAVITY = -9.8;
 const FIXED_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 const MACHINE_SIZE = 10;
-const WALL_THICKNESS = 0.5;
+const WALL_THICKNESS = 0.02;
 const TOY_COUNT = 30;
 const DISABLE_DEACTIVATION = 4;
+const ACTIVE_TAG = 1;
 const CF_KINEMATIC_OBJECT = 2;
 
+// Claw sequence tuning
+const CLAW = {
+	descendSpeed: 2.5,     // units/s while the rope is paying out
+	ascendSpeed: 2.5,      // units/s while the rope is reeling in
+	travelSpeed: 3,        // units/s while carrying the toy to the corner
+	releaseDelay: 0.8,     // seconds to wait after dropping the toy
+	contactTolerance: 0.03,
+	corner: {x: -1, z: -1}, // which corner to drop the toy in (-1 / +1)
+	returnHome: true,      // go back to the start position after release
+};
+
 const settings = {
-	ballRadius: 1,
-	ballWidthSegments: 16,
+	ballRadius: .25,
+	ballWidthSegments: 12,
 	ballHeightSegments: 12,
-	ballMass: 1,
+	ballMass: 10,
 	ballFriction: 1,
-	ropeSegmentsCount: 6,
-	ropeLength: 3,
-	ropeElastic: 1, // total rope mass
-	moveSpeed: 3,
-	influence: 1,
+	ropeSegmentsCount: 3,
+	ropeLength: 1,
+	ropeElastic: 6.7,
+	moveSpeed: 1,
+	influence: .5,
 };
 
 const sliderRanges = {
@@ -61,7 +73,7 @@ const ropeMaterial = new THREE.LineBasicMaterial({color: 0x000000});
 const glassMaterial = new THREE.MeshPhongMaterial({
 	color: 'grey',
 	transparent: true,
-	opacity: 0.3,
+	opacity: 0.37,
 	depthWrite: false,
 });
 const toyGeometry = new THREE.BoxGeometry(1, 1, 1);
@@ -85,6 +97,7 @@ let softBodySolver;
 const tmpTransform = new AmmoLib.btTransform();
 const armTransform = new AmmoLib.btTransform();
 const armPosition = new AmmoLib.btVector3(0, 0, 0);
+const tmpVec = new AmmoLib.btVector3(0, 0, 0);
 
 const pos = new THREE.Vector3();
 const quat = new THREE.Quaternion();
@@ -92,15 +105,42 @@ const quat = new THREE.Quaternion();
 // Per-world registries (cleared on rebuild)
 let arm = null;
 let armBody = null;
+let ballMesh = null;
+let ballBody = null;
 let rope = null;
+let ropeSegmentCount = 1;
 let ropeSoftBody = null;
 let ropeNodes = null;
 const dynamicMeshes = [];   // meshes synced from physics each frame
 const allMeshes = [];       // every mesh added to the scene
+const toyMeshes = [];       // grabbable toy cubes
 const physicsBodies = [];
 const motionStates = [];
 const physicsShapes = [];
 const softBodies = [];
+
+// ---------------------------------------------------------------------------
+// Claw sequence state
+// phases: idle -> descend -> ascend -> travel -> wait -> home -> finish -> idle
+// ---------------------------------------------------------------------------
+const claw = {
+	phase: 'idle',
+	arm: new THREE.Vector3(),      // authoritative arm position during sequence
+	ball: new THREE.Vector3(),     // authoritative ball position during sequence
+	home: new THREE.Vector3(),     // where the arm started
+	target: new THREE.Vector3(),
+	corner: new THREE.Vector3(),
+	toy: null,
+	toyOffset: new THREE.Vector3(),
+	topBallY: 0,
+	timer: 0,
+};
+
+function resetClawState() {
+	claw.phase = 'idle';
+	claw.toy = null;
+	claw.timer = 0;
+}
 
 // ---------------------------------------------------------------------------
 // Input
@@ -117,8 +157,18 @@ function updateMovement() {
 
 function initInput() {
 	window.addEventListener('keydown', (event) => {
+		if (event.code === 'Space') {
+			event.preventDefault();
+			if (!event.repeat) startClaw();
+			return;
+		}
+
 		if (!MOVE_KEYS.has(event.code)) return;
 		event.preventDefault();
+
+		// Movement keys are blocked while the claw sequence is running
+		if (claw.phase !== 'idle') return;
+
 		pressedKeys.add(event.code);
 		updateMovement();
 	});
@@ -152,8 +202,8 @@ function initGraphics() {
 	controls.target.set(1, 3, 1);
 	controls.update();
 
-	Scene.add(new THREE.AmbientLight('white', 1.2));
-	const light = new THREE.DirectionalLight('white', 2);
+	Scene.add(new THREE.AmbientLight('white', 2));
+	const light = new THREE.DirectionalLight('#f3f3f3', 100);
 	light.position.set(0, 10, 0);
 	Scene.add(light);
 
@@ -298,11 +348,12 @@ function Toys(avoidX, avoidZ, avoidRadius) {
 		placed.push({x, y, z});
 
 		pos.set(x, y, z);
-		createBoxObject(
+		const toy = createBoxObject(
 			1, 1, 1, 1, pos, quat,
 			new THREE.MeshPhongMaterial({color: Math.floor(Math.random() * 0xffffff)}),
 			toyGeometry
 		);
+		toyMeshes.push(toy);
 	}
 }
 
@@ -312,8 +363,10 @@ function Mechanism() {
 	const maxY = MACHINE_SIZE - 1;
 
 	// Arm hangs above the ball; the ball starts a little above the floor.
-	const armY = Math.min(L + 2 * r + 1.5, maxY);
-	pos.set(0, armY, 0);
+	const armX = Math.min(L + 2 * r + 1.5, maxY);
+	const armY = MACHINE_SIZE-1;
+	const armZ = Math.min(L + 2 * r + 1.5, maxY);
+	pos.set(armX,armY,armZ);
 	quat.set(0, 0, 0, 1);
 	arm = createBoxObject(1, 1, 1, 0, pos, quat, baseMaterial);
 
@@ -321,20 +374,21 @@ function Mechanism() {
 	armBody.setCollisionFlags(armBody.getCollisionFlags() | CF_KINEMATIC_OBJECT);
 	armBody.setActivationState(DISABLE_DEACTIVATION);
 
-	Grape(armY);
+	Grape(armX,armY,armZ);
 }
 
-function Grape(armY) {
+function Grape(armX,armY,armZ) {
 	const r = settings.ballRadius;
 	const L = settings.ropeLength;
 	const segments = Math.max(1, Math.floor(settings.ropeSegmentsCount));
+	ropeSegmentCount = segments;
 
 	// Ball (hangs below the arm: arm bottom - rope length - radius)
 	const ballY = Math.max(r, armY - 0.5 - L - r);
-	pos.set(0, ballY, 0);
+	pos.set(armX, ballY, armZ);
 	quat.set(0, 0, 0, 1);
 
-	const ball = new THREE.Mesh(
+	ballMesh = new THREE.Mesh(
 		new THREE.SphereGeometry(
 			r,
 			settings.ballWidthSegments,
@@ -343,7 +397,7 @@ function Grape(armY) {
 		baseMaterial
 	);
 	const ballShape = new AmmoLib.btSphereShape(r);
-	const ballBody = createRigidBody(ball, ballShape, settings.ballMass, pos, quat);
+	ballBody = createRigidBody(ballMesh, ballShape, settings.ballMass, pos, quat);
 	ballBody.setFriction(settings.ballFriction);
 	ballBody.setActivationState(DISABLE_DEACTIVATION);
 
@@ -370,11 +424,25 @@ function Grape(armY) {
 	rope = new THREE.LineSegments(ropeGeometry, ropeMaterial);
 	rope.frustumCulled = false;
 
-	// Rope soft body. CreateRope's "res" = number of nodes BETWEEN the ends,
+	createRopeSoftBody();
+
+	allMeshes.push(rope);
+	Scene.add(rope);
+}
+
+// Rope soft body is created between the CURRENT ball top and arm bottom, so it
+// can be re-created at any time (used at the end of the claw sequence).
+function createRopeSoftBody() {
+	const r = settings.ballRadius;
+	const segments = ropeSegmentCount;
+	const bp = ballMesh.position;
+	const ap = arm.position;
+
+	// CreateRope's "res" = number of nodes BETWEEN the ends,
 	// so segments - 1 gives exactly segments + 1 nodes (matches the geometry).
 	const helpers = new AmmoLib.btSoftBodyHelpers();
-	const ropeStart = new AmmoLib.btVector3(0, ropeStartY, 0);
-	const ropeEnd = new AmmoLib.btVector3(0, ropeEndY, 0);
+	const ropeStart = new AmmoLib.btVector3(bp.x, bp.y + r, bp.z);
+	const ropeEnd = new AmmoLib.btVector3(ap.x, ap.y - 0.5, ap.z);
 
 	ropeSoftBody = helpers.CreateRope(
 		physicsWorld.getWorldInfo(), ropeStart, ropeEnd, segments - 1, 0
@@ -397,9 +465,16 @@ function Grape(armY) {
 	AmmoLib.destroy(ropeStart);
 	AmmoLib.destroy(ropeEnd);
 	AmmoLib.destroy(helpers);
+}
 
-	allMeshes.push(rope);
-	Scene.add(rope);
+function destroyRopeSoftBody() {
+	if (!ropeSoftBody) return;
+	physicsWorld.removeSoftBody(ropeSoftBody);
+	AmmoLib.destroy(ropeSoftBody);
+	const index = softBodies.indexOf(ropeSoftBody);
+	if (index >= 0) softBodies.splice(index, 1);
+	ropeSoftBody = null;
+	ropeNodes = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -435,11 +510,15 @@ function destroyWorld() {
 	physicsShapes.length = 0;
 	allMeshes.length = 0;
 	dynamicMeshes.length = 0;
+	toyMeshes.length = 0;
 	arm = null;
 	armBody = null;
+	ballMesh = null;
+	ballBody = null;
 	rope = null;
 	ropeSoftBody = null;
 	ropeNodes = null;
+	resetClawState();
 }
 
 function rebuildWorld() {
@@ -454,10 +533,255 @@ function scheduleRebuild() {
 }
 
 // ---------------------------------------------------------------------------
+// Kinematic helpers
+// ---------------------------------------------------------------------------
+function setArmPosition(x, y, z) {
+	armPosition.setValue(x, y, z);
+	armTransform.setIdentity();
+	armTransform.setOrigin(armPosition);
+
+	armBody.setWorldTransform(armTransform);
+	const motionState = armBody.getMotionState();
+	if (motionState) motionState.setWorldTransform(armTransform);
+
+	arm.position.set(x, y, z);
+}
+
+// Moves a kinematic body keeping its current rotation
+function setKinematicOrigin(body, x, y, z) {
+	tmpVec.setValue(x, y, z);
+	const transform = body.getWorldTransform();
+	transform.setOrigin(tmpVec);
+	const motionState = body.getMotionState();
+	if (motionState) motionState.setWorldTransform(transform);
+}
+
+function zeroVelocity(body) {
+	tmpVec.setValue(0, 0, 0);
+	body.setLinearVelocity(tmpVec);
+	body.setAngularVelocity(tmpVec);
+}
+
+function makeKinematic(body) {
+	zeroVelocity(body);
+	body.setCollisionFlags(body.getCollisionFlags() | CF_KINEMATIC_OBJECT);
+	body.setActivationState(DISABLE_DEACTIVATION);
+}
+
+function makeDynamic(body, keepAwake) {
+	body.setCollisionFlags(body.getCollisionFlags() & ~CF_KINEMATIC_OBJECT);
+	zeroVelocity(body);
+	body.setActivationState(keepAwake ? DISABLE_DEACTIVATION : ACTIVE_TAG);
+}
+
+const _delta = new THREE.Vector3();
+// Moves `current` toward `target` by at most maxDist. Returns true when reached.
+function stepToward(current, target, maxDist) {
+	_delta.copy(target).sub(current);
+	const d = _delta.length();
+	if (d <= maxDist || d < 1e-6) {
+		current.copy(target);
+		return true;
+	}
+	current.addScaledVector(_delta, maxDist / d);
+	return false;
+}
+
+// ---------------------------------------------------------------------------
+// Claw sequence (SPACE)
+// ---------------------------------------------------------------------------
+const _local = new THREE.Vector3();
+const _invQuat = new THREE.Quaternion();
+
+// Sphere (center, radius) vs. oriented box (toy mesh) overlap test
+function sphereTouchesToy(center, radius, toy) {
+	_invQuat.copy(toy.quaternion).invert();
+	_local.copy(center).sub(toy.position).applyQuaternion(_invQuat);
+
+	const hx = 0.5 * toy.scale.x;
+	const hy = 0.5 * toy.scale.y;
+	const hz = 0.5 * toy.scale.z;
+
+	const dx = _local.x - THREE.MathUtils.clamp(_local.x, -hx, hx);
+	const dy = _local.y - THREE.MathUtils.clamp(_local.y, -hy, hy);
+	const dz = _local.z - THREE.MathUtils.clamp(_local.z, -hz, hz);
+
+	const reach = radius + CLAW.contactTolerance;
+	return dx * dx + dy * dy + dz * dz <= reach * reach;
+}
+
+function findTouchedToy() {
+	const r = settings.ballRadius;
+	for (const toy of toyMeshes) {
+		if (toy === claw.toy) continue;
+		if (sphereTouchesToy(claw.ball, r, toy)) return toy;
+	}
+	return null;
+}
+
+function grabToy(toy) {
+	claw.toy = toy;
+	claw.toyOffset.copy(toy.position).sub(claw.ball);
+	makeKinematic(toy.userData.physicsBody);
+}
+
+function releaseToy() {
+	if (!claw.toy) return;
+	makeDynamic(claw.toy.userData.physicsBody, false);
+	claw.toy = null;
+}
+
+function startClaw() {
+	if (claw.phase !== 'idle' || !armBody || !ballBody) return;
+
+	// block / clear manual movement
+	pressedKeys.clear();
+	updateMovement();
+
+	const r = settings.ballRadius;
+	claw.arm.copy(arm.position);
+	claw.home.copy(arm.position);
+	claw.ball.copy(ballMesh.position);
+
+	// Current rope length = distance from arm bottom to ball top
+	const ropeLen = Math.max(0.2, (arm.position.y - 0.5) - (ballMesh.position.y + r));
+	claw.topBallY = arm.position.y - 0.5 - ropeLen - r;
+
+	const limit = MACHINE_SIZE / 2 - Math.max(0.8, r + 0.5);
+	claw.corner.set(CLAW.corner.x * limit, arm.position.y, CLAW.corner.z * limit);
+
+	claw.toy = null;
+	claw.timer = 0;
+
+	// The physical rope is replaced by a visual rope that stretches freely
+	destroyRopeSoftBody();
+	makeKinematic(ballBody);
+
+	claw.phase = 'descend';
+}
+
+function finishClaw() {
+	makeDynamic(ballBody, true);
+	createRopeSoftBody();   // physical rope again, from current ball to arm
+	resetClawState();
+}
+
+function applyBallAndToy() {
+	setKinematicOrigin(ballBody, claw.ball.x, claw.ball.y, claw.ball.z);
+	ballMesh.position.copy(claw.ball);
+
+	if (claw.toy) {
+		const x = claw.ball.x + claw.toyOffset.x;
+		const y = claw.ball.y + claw.toyOffset.y;
+		const z = claw.ball.z + claw.toyOffset.z;
+		setKinematicOrigin(claw.toy.userData.physicsBody, x, y, z);
+		claw.toy.position.set(x, y, z);
+	}
+}
+
+function updateClaw(dt) {
+	if (claw.phase === 'idle' || !armBody || !ballBody) return;
+
+	const r = settings.ballRadius;
+
+	switch (claw.phase) {
+		case 'descend': {
+			// rope grows while the sphere goes down
+			claw.ball.y -= CLAW.descendSpeed * dt;
+
+			if (claw.ball.y <= r) {
+				claw.ball.y = r;          // reached the floor without a toy
+				claw.phase = 'ascend';
+			} else {
+				const toy = findTouchedToy();
+				if (toy) {
+					grabToy(toy);         // sphere collided with a cube
+					claw.phase = 'ascend';
+				}
+			}
+			break;
+		}
+
+		case 'ascend': {
+			// rope shortens until the sphere is back at the top
+			claw.target.set(claw.arm.x, claw.topBallY, claw.arm.z);
+			if (stepToward(claw.ball, claw.target, CLAW.ascendSpeed * dt)) {
+				claw.phase = claw.toy ? 'travel' : 'finish';
+			}
+			break;
+		}
+
+		case 'travel': {
+			// carry the toy to the corner (ball stays under the arm)
+			claw.target.set(claw.corner.x, claw.arm.y, claw.corner.z);
+			const arrived = stepToward(claw.arm, claw.target, CLAW.travelSpeed * dt);
+			claw.ball.set(claw.arm.x, claw.topBallY, claw.arm.z);
+
+			if (arrived) {
+				releaseToy();
+				claw.timer = 0;
+				claw.phase = 'wait';
+			}
+			break;
+		}
+
+		case 'wait': {
+			claw.timer += dt;
+			if (claw.timer >= CLAW.releaseDelay) {
+				claw.phase = CLAW.returnHome ? 'home' : 'finish';
+			}
+			break;
+		}
+
+		case 'home': {
+			claw.target.set(claw.home.x, claw.arm.y, claw.home.z);
+			const arrived = stepToward(claw.arm, claw.target, CLAW.travelSpeed * dt);
+			claw.ball.set(claw.arm.x, claw.topBallY, claw.arm.z);
+			if (arrived) claw.phase = 'finish';
+			break;
+		}
+
+		case 'finish': {
+			setArmPosition(claw.arm.x, claw.arm.y, claw.arm.z);
+			applyBallAndToy();
+			finishClaw();
+			return;
+		}
+	}
+
+	setArmPosition(claw.arm.x, claw.arm.y, claw.arm.z);
+	applyBallAndToy();
+}
+
+// Straight visual rope between the ball top and the arm bottom
+function updateClawRopeLine() {
+	const positions = rope.geometry.attributes.position;
+	const array = positions.array;
+	const r = settings.ballRadius;
+	const count = array.length / 3;
+
+	const bx = ballMesh.position.x;
+	const by = ballMesh.position.y + r;
+	const bz = ballMesh.position.z;
+	const ax = arm.position.x;
+	const ay = arm.position.y - 0.5;
+	const az = arm.position.z;
+
+	for (let i = 0; i < count; i++) {
+		const t = count > 1 ? i / (count - 1) : 0;
+		array[i * 3] = bx + (ax - bx) * t;
+		array[i * 3 + 1] = by + (ay - by) * t;
+		array[i * 3 + 2] = bz + (az - bz) * t;
+	}
+	positions.needsUpdate = true;
+}
+
+// ---------------------------------------------------------------------------
 // Simulation
 // ---------------------------------------------------------------------------
 function moveArm(deltaTime) {
 	if (!armBody) return;
+	if (claw.phase !== 'idle') return; // manual movement blocked during claw sequence
 	if (movement.x === 0 && movement.y === 0 && movement.z === 0) return;
 
 	const length = Math.hypot(movement.x, movement.y, movement.z);
@@ -470,31 +794,27 @@ function moveArm(deltaTime) {
 	const y = THREE.MathUtils.clamp(current.y() + movement.y * scale, 1, MACHINE_SIZE - 1);
 	const z = THREE.MathUtils.clamp(current.z() + movement.z * scale, -limit, limit);
 
-	armPosition.setValue(x, y, z);
-	armTransform.setIdentity();
-	armTransform.setOrigin(armPosition);
-
-	armBody.setWorldTransform(armTransform);
-	const motionState = armBody.getMotionState();
-	if (motionState) motionState.setWorldTransform(armTransform);
-
-	arm.position.set(x, y, z);
+	setArmPosition(x, y, z);
 }
 
 function syncGraphics() {
-	if (rope && ropeNodes) {
-		const positions = rope.geometry.attributes.position;
-		const array = positions.array;
-		const nodeCount = Math.min(array.length / 3, ropeNodes.size());
+	if (rope) {
+		if (ropeNodes) {
+			const positions = rope.geometry.attributes.position;
+			const array = positions.array;
+			const nodeCount = Math.min(array.length / 3, ropeNodes.size());
 
-		for (let i = 0; i < nodeCount; i++) {
-			const p = ropeNodes.at(i).get_m_x();
-			const index = i * 3;
-			array[index] = p.x();
-			array[index + 1] = p.y();
-			array[index + 2] = p.z();
+			for (let i = 0; i < nodeCount; i++) {
+				const p = ropeNodes.at(i).get_m_x();
+				const index = i * 3;
+				array[index] = p.x();
+				array[index + 1] = p.y();
+				array[index + 2] = p.z();
+			}
+			positions.needsUpdate = true;
+		} else if (claw.phase !== 'idle' && ballMesh && arm) {
+			updateClawRopeLine();
 		}
-		positions.needsUpdate = true;
 	}
 
 	for (const mesh of dynamicMeshes) {
@@ -514,6 +834,7 @@ function animate() {
 	const deltaTime = Math.min(timer.getDelta(), 0.1);
 
 	moveArm(deltaTime);
+	updateClaw(deltaTime);
 	physicsWorld.stepSimulation(deltaTime, MAX_SUBSTEPS, FIXED_STEP);
 	syncGraphics();
 
