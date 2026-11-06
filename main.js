@@ -7,7 +7,7 @@ const AmmoLib = await Ammo.call({});
 const timer = new THREE.Timer();
 
 const Camera = new PerspectiveCamera(
-	60, window.innerWidth / window.innerHeight, 0.1, 300
+	90, window.innerWidth / window.innerHeight, 0.1, 300
 );
 const Renderer = new THREE.WebGLRenderer({
 	antialias: false
@@ -66,8 +66,26 @@ const settings = {
 	influence: 1,
 };
 
+function rxyz (){
+	return Math.floor(Math.random()*5.5);
+}
+function CameraPosition()
+{
+	let r;
+	r = rxyz();
+	Camera.position.set(r,r,r);
+	controls = new OrbitControls(Camera, Renderer.domElement);
+	controls.target.set(0, 5, 0);
+	controls.update();
+}
+function onWindowResize() {
+	Camera.aspect = window.innerWidth / window.innerHeight;
+	Camera.updateProjectionMatrix();
+	Renderer.setSize(window.innerWidth, window.innerHeight);
+}
 function initGraphics() {
 	if (!graphContent) return;
+	window.addEventListener('resize', onWindowResize);
 
 	Scene.add(new THREE.AmbientLight("white", 10));
 
@@ -88,13 +106,7 @@ function initGraphics() {
 	Renderer.setSize(window.innerWidth, window.innerHeight);
 	graphContent.appendChild(Renderer.domElement);
 	Renderer.setAnimationLoop(animate);
-
-	Camera.position.set(10, 10, 20);
-	controls = new OrbitControls(Camera, Renderer.domElement);
-	controls.target.set(0, 5, 0);
-	controls.update();
-
-	window.addEventListener('resize', onWindowResize);
+	CameraPosition();
 }
 
 function initPhysics() {
@@ -516,11 +528,7 @@ function render() {
 		alert(initialized)
 }
 
-function onWindowResize() {
-	Camera.aspect = window.innerWidth / window.innerHeight;
-	Camera.updateProjectionMatrix();
-	Renderer.setSize(window.innerWidth, window.innerHeight);
-}
+
 
 // function updateObjects() {
 // 	for (const body of physicsBodies) {
