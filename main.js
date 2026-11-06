@@ -1,7 +1,7 @@
 import * as THREE from 'three';
+import {PerspectiveCamera} from 'three';
 import Ammo from 'ammojs-typed';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-import {PerspectiveCamera} from "three";
 
 const AmmoLib = await Ammo.call({});
 const timer = new THREE.Timer();
@@ -70,12 +70,11 @@ const settings = {
 function initGraphics() {
 	if (!graphContent) return;
 
-	Scene.add(new THREE.AmbientLight(0xbbbbbb));
+	Scene.add(new THREE.AmbientLight("white", 10));
 
-	const light = new THREE.DirectionalLight(0xffffff, 3);
-	light.position.set(-10, 10, 5);
-	light.castShadow = false;
-	Scene.add(light);
+	// const light = new THREE.DirectionalLight("red", 50);
+	// light.position.set(10, 100, 10);
+	// Scene.add(light);
 
 	Scene.background = CubeLoader.load([
 		'images/00.png',
@@ -91,7 +90,7 @@ function initGraphics() {
 	graphContent.appendChild(Renderer.domElement);
 	Renderer.setAnimationLoop(animate);
 
-	Camera.position.set(0, 1, 6);
+	Camera.position.set(0, 1, 10);
 	controls = new OrbitControls(Camera, Renderer.domElement);
 	controls.target.set(0, 2, 0);
 	controls.update();
@@ -200,7 +199,7 @@ function initObjects() {
 
 	Machine();
 	// Mechanism(-4, 9, -4);
-	// Toys(0, 5, -5);
+	Toys(0, 0, 0);
 	// Toys(0, 5, -5);
 	// Toys(0, 5, -5);
 }
@@ -324,42 +323,34 @@ function Mechanism(x, y, z) {
 
 function Toys(x, y, z) {
 	pos.set(x, y, z);
+
+	const numBricksLength = 2;
+	const numBricksHeight = 2;
+
 	const brickMass = 1;
 	const brickLength = 1;
 	const brickDepth = 1;
 	const brickHeight = 1;
-	const numBricksLength = 5;
-	const numBricksHeight = 2;
+
 	const z0 = -numBricksLength * brickLength;
 	for (let j = 0; j < numBricksHeight; j++) {
 		const oddRow = j % 2 === 1;
-		pos.z = oddRow ? z0 - 0.25 * brickLength : z0;
+		pos.z = oddRow ? z0 - brickLength : z0;
 		pos.y = y + j * brickHeight;
 		const rowLength = oddRow ? numBricksLength + 1 : numBricksLength;
 		for (let i = 0; i < rowLength; i++) {
-			let currentLength = brickLength;
-			let currentMass = brickMass;
-
-			if (oddRow && (i === 0 || i === rowLength - 1)) {
-				currentLength *= 0.5;
-				currentMass *= 0.5;
-			}
-
 			const brick = createBoxObject(
 				brickDepth,
 				brickHeight,
-				currentLength,
-				currentMass,
+				brickLength,
+				brickMass,
 				pos,
 				quat,
-				RandomColorMaterial()
+				baseMaterial
 			);
 
-			brick.castShadow = false;
-			brick.receiveShadow = false;
-
 			if (oddRow && (i === 0 || i === rowLength - 2)) {
-				pos.z += 0.75 * brickLength;
+				pos.z += .9 * brickLength;
 			} else {
 				pos.z += brickLength;
 			}
@@ -372,43 +363,41 @@ function Machine() {
 	const length = 10;
 
 	const matGlass = new THREE.MeshPhongMaterial({
-		color: 0xffffff,
+		color: "grey",
 		transparent: true,
 		opacity: .5,
 	});
 
 	pos.set(0, 0, 0);
-	quat.set(0,0,0,0);
 	ground = createBoxObject(
 		length, thickness, length, 0,
 		pos, quat, matGlass);
 
 	pos.set(-length / 2, length / 2, 0);
-	quat.set(0,0,0,0);
 	ground.attach(createBoxObject(thickness, length, length, 0,
 		pos, quat, matGlass));
-	//
-	// pos.set(length / 2, length / 2, 0);
-	// ground.attach(createBoxObject(thickness, length, length, 0,
-	// 	pos, 0,
-	// 	matGlass));
-	//
-	// pos.set(0, length, 0);
-	// ground.attach(createBoxObject(length, thickness, length, 0,
-	// 	pos, 0,
-	// 	matGlass));
-	//
-	// pos.set(0, length / 2, -length / 2)
-	// ground.attach(createBoxObject(length,length, thickness, 0,
-	// 	pos, 0,
-	// 	matGlass));
-	//
-	// pos.set(0, length / 2, length / 2)
-	// ground.attach(createBoxObject(-length,-length, thickness,		0,
-	// 	pos,0,
-	// 	matGlass));
 
-	setTexture(ground);
+	pos.set(length / 2, length / 2, 0);
+	quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI);
+	ground.attach(createBoxObject(thickness, length, length, 0,
+		pos, quat, matGlass));
+
+	pos.set(0, length, 0);
+	ground.attach(createBoxObject(length, thickness, length, 0,
+		pos, quat,
+		matGlass));
+
+	pos.set(0, length / 2, -length / 2)
+	ground.attach(createBoxObject(length,length, thickness, 0,
+		pos, quat,
+		matGlass));
+
+	pos.set(0, length / 2, length / 2)
+	ground.attach(createBoxObject(-length,-length, thickness,		0,
+		pos,quat,
+		matGlass));
+
+	// setTexture(ground);
 }
 
 function createBoxObject(sx, sy, sz, mass, pos, quat, material) {
@@ -463,20 +452,20 @@ function createRigidBody(threeObject, physicsShape, mass, pos, quat) {
 	Scene.add(threeObject);
 }
 
-function RandomColorMaterial() {
-	return new THREE.MeshPhongMaterial({color: Math.floor(Math.random() * (1 << 24))});
-}
+// function RandomColorMaterial() {
+// 	return new THREE.MeshPhongMaterial({color: Math.floor(Math.random() * (1 << 24))});
+// }
 
-function setTexture(object) {
-	TextureLoader.load('textures/grid.png', (texture) => {
-		texture.colorSpace = THREE.SRGBColorSpace;
-		texture.wrapS = THREE.RepeatWrapping;
-		texture.wrapT = THREE.RepeatWrapping;
-		texture.repeat.set(10, 10);
-		object.material.map = texture;
-		object.material.needsUpdate = true;
-	});
-}
+// function setTexture(object) {
+// 	TextureLoader.load('textures/grid.png', (texture) => {
+// 		texture.colorSpace = THREE.SRGBColorSpace;
+// 		texture.wrapS = THREE.RepeatWrapping;
+// 		texture.wrapT = THREE.RepeatWrapping;
+// 		texture.repeat.set(10, 10);
+// 		object.material.map = texture;
+// 		object.material.needsUpdate = true;
+// 	});
+// }
 
 function updatePhysics(deltaTime) {
 	physicsWorld.stepSimulation(deltaTime, 5);
