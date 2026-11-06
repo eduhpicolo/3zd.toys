@@ -15,7 +15,7 @@ const FIXED_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 const MACHINE_SIZE = 10;
 const WALL_THICKNESS = 0.02;
-const TOY_COUNT = 30;
+const TOY_COUNT = 5;
 const DISABLE_DEACTIVATION = 4;
 const ACTIVE_TAG = 1;
 const CF_KINEMATIC_OBJECT = 2;
@@ -325,6 +325,18 @@ function Machine() {
 	// Ceiling
 	pos.set(0, L + t / 2, 0);
 	createBoxObject(L + 2 * t, t, L + 2 * t, 0, pos, quat, glassMaterial);
+
+	// Collector
+	// Left / right
+	pos.set(-half - t/2 / 4, half/2, 0);
+	createBoxObject(t/2, L/2, L/2, 0, pos, quat, glassMaterial);
+	pos.set(half + t / 4, half/2, 0);
+	createBoxObject(t/2, L/2, L/2, 0, pos, quat, glassMaterial);
+	// Back / front
+	pos.set(0, half/2, -half - t / 4);
+	createBoxObject(L/2, L/2, t/2, 0, pos, quat, glassMaterial);
+	pos.set(0, half/2, half + t / 4);
+	createBoxObject(L/2, L/2, t/2, 0, pos, quat, glassMaterial);
 }
 
 function Toys(avoidX, avoidZ, avoidRadius) {
@@ -358,15 +370,16 @@ function Toys(avoidX, avoidZ, avoidRadius) {
 }
 
 function Mechanism() {
+	claw.home.x = -MACHINE_SIZE/2+1;
+	claw.home.y = MACHINE_SIZE/2+1;
+	claw.home.z = -MACHINE_SIZE/2+1;
 	const r = settings.ballRadius;
 	const L = settings.ropeLength;
-	const maxY = MACHINE_SIZE - 1;
+	const maxY = claw.home.y;
 
 	// Arm hangs above the ball; the ball starts a little above the floor.
-	const armX = Math.min(L + 2 * r + 1.5, maxY);
-	const armY = MACHINE_SIZE-1;
-	const armZ = Math.min(L + 2 * r + 1.5, maxY);
-	pos.set(armX,armY,armZ);
+	const armY = claw.home.y+ Math.min(L + 2 * r + 1.5, maxY);
+	pos.set(claw.home.x, armY, claw.home.z);
 	quat.set(0, 0, 0, 1);
 	arm = createBoxObject(1, 1, 1, 0, pos, quat, baseMaterial);
 
@@ -374,10 +387,10 @@ function Mechanism() {
 	armBody.setCollisionFlags(armBody.getCollisionFlags() | CF_KINEMATIC_OBJECT);
 	armBody.setActivationState(DISABLE_DEACTIVATION);
 
-	Grape(armX,armY,armZ);
+	Grape(armY);
 }
 
-function Grape(armX,armY,armZ) {
+function Grape(armY) {
 	const r = settings.ballRadius;
 	const L = settings.ropeLength;
 	const segments = Math.max(1, Math.floor(settings.ropeSegmentsCount));
@@ -385,7 +398,7 @@ function Grape(armX,armY,armZ) {
 
 	// Ball (hangs below the arm: arm bottom - rope length - radius)
 	const ballY = Math.max(r, armY - 0.5 - L - r);
-	pos.set(armX, ballY, armZ);
+	pos.set(claw.home.x, ballY, claw.home.z);
 	quat.set(0, 0, 0, 1);
 
 	ballMesh = new THREE.Mesh(
