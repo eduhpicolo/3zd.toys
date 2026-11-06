@@ -316,7 +316,7 @@ function initObjects() {
 // }
 
 const toys = new Map();
-const quantity = 5;
+const quantity = 30;
 
 function Toys() {
 	for (let i = 0; i < quantity; i++) {
@@ -330,43 +330,43 @@ function Toys() {
 }
 
 function Machine() {
-	const thickness = .2;
+	const thickness = .02;
 	const length = 10;
 
 	const matGlass = new THREE.MeshPhongMaterial({
-		color: "grey",
+		color: "white",
 		transparent: true,
-		opacity: .5,
+		opacity: .3,
 	});
 
-	pos.set(0, -thickness, 0);
+	pos.set(0, -thickness, -1);
 	ground = createBoxObject(
-		length, thickness, length, 0,
-		pos, quat, baseMaterial);
+		length, thickness, length-2, 0,
+		pos, quat, matGlass);
 
-	// pos.set(-length / 2, length / 2, 0);
-	// ground.attach(createBoxObject(thickness, length, length, 0,
-	// 	pos, quat, matGlass));
-	//
-	// pos.set(length / 2, length / 2, 0);
-	// quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI);
-	// ground.attach(createBoxObject(thickness, length, length, 0,
-	// 	pos, quat, matGlass));
-	//
-	// pos.set(0, length, 0);
-	// ground.attach(createBoxObject(length, thickness, length, 0,
-	// 	pos, quat,
-	// 	matGlass));
-	//
-	// pos.set(0, length / 2, -length / 2)
-	// ground.attach(createBoxObject(length, length, thickness, 0,
-	// 	pos, quat,
-	// 	matGlass));
-	//
-	// pos.set(0, length / 2, length / 2)
-	// ground.attach(createBoxObject(-length, -length, thickness, 0,
-	// 	pos, quat,
-	// 	matGlass));
+	pos.set(-length / 2, length / 2, 0);
+	ground.attach(createBoxObject(thickness, length, length, 0,
+		pos, quat, matGlass));
+
+	pos.set(length / 2, length / 2, 0);
+	quat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -Math.PI);
+	ground.attach(createBoxObject(thickness, length, length, 0,
+		pos, quat, matGlass));
+
+	pos.set(0, length, 0);
+	ground.attach(createBoxObject(length, thickness, length, 0,
+		pos, quat,
+		matGlass));
+
+	pos.set(0, length / 2, -length / 2)
+	ground.attach(createBoxObject(length, length, thickness, 0,
+		pos, quat,
+		matGlass));
+
+	pos.set(0, length / 2, length / 2)
+	ground.attach(createBoxObject(-length, -length, thickness, 0,
+		pos, quat,
+		matGlass));
 
 	// setTexture(ground);
 }
@@ -375,8 +375,10 @@ function createBoxObject(sx, sy, sz, mass, pos, quat, material) {
 	const threeObject = new THREE.Mesh(
 		new THREE.BoxGeometry(sx, sy, sz), material
 	);
+	Scene.add(threeObject);
+
 	const physicsShape = new AmmoLib.btBoxShape(
-		new AmmoLib.btVector3(sx, sy, sz));
+		new AmmoLib.btVector3(sx*0.5, sy*0.5, sz*0.5));
 
 	threeObject.position.copy(pos);
 	threeObject.quaternion.copy(quat);
@@ -398,12 +400,13 @@ function createBoxObject(sx, sy, sz, mass, pos, quat, material) {
 		mass, motionState, physicsShape, localInertia
 	);
 	body = new AmmoLib.btRigidBody(rbInfo);
-	if (mass > 0) rigidBodies.push(threeObject);
+
 	objectMeshes.push(threeObject);
 	physicsBodies.push(body);
 	physicsWorld.addRigidBody(body);
 	threeObject.userData.physicsBody = body;
-	Scene.add(threeObject);
+	if (mass > 0) rigidBodies.push(threeObject);
+
 	return threeObject;
 }
 
