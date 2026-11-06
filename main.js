@@ -15,7 +15,7 @@ const FIXED_STEP = 1 / 60;
 const MAX_SUBSTEPS = 5;
 const MACHINE_SIZE = 10;
 const WALL_THICKNESS = 0.02;
-const TOY_COUNT = 5;
+const TOY_COUNT = 50;
 const DISABLE_DEACTIVATION = 4;
 const ACTIVE_TAG = 1;
 const CF_KINEMATIC_OBJECT = 2;
@@ -123,11 +123,14 @@ const softBodies = [];
 // Claw sequence state
 // phases: idle -> descend -> ascend -> travel -> wait -> home -> finish -> idle
 // ---------------------------------------------------------------------------
+const iX = -MACHINE_SIZE/2+1;
+const iY = MACHINE_SIZE/2+1;
+const iZ = MACHINE_SIZE/2-1;
 const claw = {
 	phase: 'idle',
 	arm: new THREE.Vector3(),      // authoritative arm position during sequence
 	ball: new THREE.Vector3(),     // authoritative ball position during sequence
-	home: new THREE.Vector3(),     // where the arm started
+	home: new THREE.Vector3(iX,iY,iZ),     // where the arm started
 	target: new THREE.Vector3(),
 	corner: new THREE.Vector3(),
 	toy: null,
@@ -370,9 +373,6 @@ function Toys(avoidX, avoidZ, avoidRadius) {
 }
 
 function Mechanism() {
-	claw.home.x = -MACHINE_SIZE/2+1;
-	claw.home.y = MACHINE_SIZE/2+1;
-	claw.home.z = -MACHINE_SIZE/2+1;
 	const r = settings.ballRadius;
 	const L = settings.ropeLength;
 	const maxY = claw.home.y;
@@ -645,8 +645,10 @@ function releaseToy() {
 }
 
 function startClaw() {
-	if (claw.phase !== 'idle' || !armBody || !ballBody) return;
+	if(arm.position.x < -2 && arm.position.z > 2)
+		return;
 
+	if (claw.phase !== 'idle' || !armBody || !ballBody) return;
 	// block / clear manual movement
 	pressedKeys.clear();
 	updateMovement();
@@ -719,14 +721,14 @@ function updateClaw(dt) {
 			// rope shortens until the sphere is back at the top
 			claw.target.set(claw.arm.x, claw.topBallY, claw.arm.z);
 			if (stepToward(claw.ball, claw.target, CLAW.ascendSpeed * dt)) {
-				claw.phase = claw.toy ? 'travel' : 'finish';
+				claw.phase = claw.toy ? 'travel' : 'goback';
 			}
 			break;
 		}
 
 		case 'travel': {
 			// carry the toy to the corner (ball stays under the arm)
-			claw.target.set(claw.corner.x, claw.arm.y, claw.corner.z);
+			claw.target.set(-4, claw.arm.y, 4);
 			const arrived = stepToward(claw.arm, claw.target, CLAW.travelSpeed * dt);
 			claw.ball.set(claw.arm.x, claw.topBallY, claw.arm.z);
 
@@ -741,13 +743,21 @@ function updateClaw(dt) {
 		case 'wait': {
 			claw.timer += dt;
 			if (claw.timer >= CLAW.releaseDelay) {
-				claw.phase = CLAW.returnHome ? 'home' : 'finish';
+				claw.phase = CLAW.returnHome ? 'goback' : 'goback';
 			}
 			break;
 		}
 
 		case 'home': {
 			claw.target.set(claw.home.x, claw.arm.y, claw.home.z);
+			const arrived = stepToward(claw.arm, claw.target, CLAW.travelSpeed * dt);
+			claw.ball.set(claw.arm.x, claw.topBallY, claw.arm.z);
+			if (arrived) claw.phase = 'goback';
+			break;
+		}
+
+		case 'goback': {
+			claw.target.set(-4, claw.arm.y, 4);
 			const arrived = stepToward(claw.arm, claw.target, CLAW.travelSpeed * dt);
 			claw.ball.set(claw.arm.x, claw.topBallY, claw.arm.z);
 			if (arrived) claw.phase = 'finish';
