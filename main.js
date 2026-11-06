@@ -7,7 +7,7 @@ const AmmoLib = await Ammo.call({});
 const timer = new THREE.Timer();
 
 const Camera = new PerspectiveCamera(
-	50, window.innerWidth / window.innerHeight, 0.1, 300
+	90, window.innerWidth / window.innerHeight, 0.1, 300
 );
 const Renderer = new THREE.WebGLRenderer({
 	antialias: false
@@ -52,7 +52,7 @@ let solver;
 let softBodySolver;
 
 const settings = {
-	ballRadius: 2,
+	ballRadius: 1,
 	ballWidthSegments: 5,
 	ballHeightSegments: 5,
 	ballMass: 1,
@@ -71,15 +71,14 @@ function log(t){
 	const label = document.getElementById("logger");
 	label.innerHTML += `${t}<br>`;
 }
-function CameraPosition()
-{
-	let x = r();
-	let y = r();
-	let z = r();
-	log("x"+x+"y"+y+"z"+z);
-	Camera.position.set(x,y,z);
+function Recorder() {
+	// let x = r();
+	// let y = r();
+	// let z = r();
+	// log("x"+x+"y"+y+"z"+z);
+	Camera.position.set(1,5,10);
 	controls = new OrbitControls(Camera, Renderer.domElement);
-	controls.target.set(0, 5, 0);
+	controls.target.set(1, 3, 1);
 	controls.update();
 }
 function onWindowResize() {
@@ -89,7 +88,7 @@ function onWindowResize() {
 }
 function initGraphics() {
 	if (!graphContent) return;
-	CameraPosition();
+	Recorder();
 	Scene.add(new THREE.AmbientLight("white", 10));
 
 	const light = new THREE.DirectionalLight("white", 10);
@@ -97,12 +96,12 @@ function initGraphics() {
 	Scene.add(light);
 
 	Scene.background = CubeLoader.load([
-		'images/00.png',
-		'images/00.png',
-		'images/00.png',
-		'images/00.png',
-		'images/00.png',
-		'images/0.png',
+		'images/shortcut.png',
+		'images/banco.png',
+		'images/ceu.png',
+		'images/piso.png',
+		'images/sol.png',
+		'images/way.png',
 	]);
 
 	Renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -208,36 +207,24 @@ function initInput() {
 }
 
 function initObjects() {
-	pos.set(0, 0, 0);
-	quat.set(0, 0, 0, 1);
 	Machine();
 	Mechanism();
 	Toys();
 }
 
-function Grape() {
-	const sphere = {
-		radius: 1,
-		widthSegments: 32,
-		heightSegments: 16,
-		phiStart: 0,
-		phiLength: Math.PI,
-		thetaStart: 0,
-		thetaLength: Math.PI
-	};
-	
-	ball = new THREE.Mesh(
-		new THREE.SphereGeometry(sphere.radius, sphere.widthSegments, sphere.heightSegments),
-		baseMaterial
-	);
-	const ballShape = new AmmoLib.btSphereShape(sphere.ballRadius);
-
-	createSphereObject(ball, ballShape, settings.ballMass, pos, quat);
+function Mechanism() {
+	pos.set(3,3,3);
+	quat.set(0,0,0,1);
+	arm = createBoxObject(1, 1, 1, 0,
+		pos, quat, baseMaterial);
+	armBody = arm.userData.physicsBody;
+	armBody.setCollisionFlags(armBody.getCollisionFlags() | 2); // kinematic
+	armBody.setActivationState(4);
+	ball = createBoxObject(1,1,1, 1, pos, quat);
 	ball.userData.physicsBody.setFriction(settings.ballFriction);
 	ball.userData.physicsBody.setActivationState(4);
 
 	const ropePos = ball.position.clone();
-	ropePos.y += settings.ballRadius;
 	const ropeGeometryTop = ropePos.y + settings.ropeLength;
 	const segmentLength = settings.ropeLength / settings.ropeSegmentsCount;
 
@@ -315,20 +302,8 @@ function Grape() {
 	Scene.add(rope);
 }
 
-function Mechanism() {
-	pos.set(0, 6, 0);
-	quat.set(0,0,0,1);
-	arm = createBoxObject(1, 1, 1, 0,
-		pos, quat, baseMaterial);
-	armBody = arm.userData.physicsBody;
-	armBody.setCollisionFlags(armBody.getCollisionFlags() | 2); // kinematic
-	armBody.setActivationState(4);
-
-	Grape();
-}
 const toys = new Map();
 const quantity = 30;
-
 function Toys() {
 	for (let i = 0; i < quantity; i++) {
 		pos.set(0,5,0);
@@ -339,14 +314,17 @@ function Toys() {
 		toys.set(i, toy);
 	}
 }
+
 function Machine() {
 	const thickness = .02;
 	const length = 10;
+	pos.set(0, 0, 0);
+	quat.set(0, 0, 0, 1);
 
 	const matGlass = new THREE.MeshPhongMaterial({
 		color: "white",
 		transparent: true,
-		opacity: .3,
+		opacity: .5,
 	});
 
 	pos.set(0, -thickness, -1);
