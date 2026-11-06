@@ -328,15 +328,15 @@ function Machine() {
 
 	// Collector
 	// Left / right
-	pos.set(-half - t/2 / 4, half/2, 0);
-	createBoxObject(t/2, L/2, L/2, 0, pos, quat, glassMaterial);
-	pos.set(half + t / 4, half/2, 0);
-	createBoxObject(t/2, L/2, L/2, 0, pos, quat, glassMaterial);
-	// Back / front
-	pos.set(0, half/2, -half - t / 4);
-	createBoxObject(L/2, L/2, t/2, 0, pos, quat, glassMaterial);
-	pos.set(0, half/2, half + t / 4);
-	createBoxObject(L/2, L/2, t/2, 0, pos, quat, glassMaterial);
+	pos.set(-half, half/4, half-L/8);
+	createBoxObject(t, L/4, L/4, 0, pos, quat, glassMaterial);
+	pos.set(-half+half-L/4, half/4, half-L/8);
+	createBoxObject(t, L/4, L/4, 0, pos, quat, glassMaterial);
+	pos.set(-(half-L/8), half/4,half-half/2);
+	createBoxObject(L/4,L/4,t, 0, pos, quat, glassMaterial);
+	// pos.set(-half - t+half-L/4, half/4, half-L/8);
+	// createBoxObject(t, L/4, L/4, 0, pos, quat, glassMaterial);
+
 }
 
 function Toys(avoidX, avoidZ, avoidRadius) {
