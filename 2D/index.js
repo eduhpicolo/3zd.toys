@@ -4,7 +4,7 @@ import {gameConfig} from './config.js'
 const computed = getComputedStyle(document.documentElement)
 const cssVar = (name, parse = parseFloat) => parse(computed.getPropertyValue(name).trim())
 const toyWidth = cssVar('--toy-w')
-const toyHeight = toyWidth
+const toyHeight = cssVar('--toy-w')
 
 const elements = {
 	clawMachine: document.querySelector('.claw-machine'),

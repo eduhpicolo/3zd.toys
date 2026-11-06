@@ -517,7 +517,7 @@ function moveArm(deltaTime) {
 }
 
 function animate() {
-	if(!initialized) return;
+	if (!initialized) return;
 	timer.update();
 	render();
 }
@@ -526,7 +526,7 @@ function render() {
 	const deltaTime = Math.min(timer.getDelta(), 0.1);
 	updatePhysics(deltaTime);
 	Renderer.render(Scene, Camera);
-	if(!initialized)
+	if (!initialized)
 		alert(initialized)
 }
 
@@ -613,24 +613,24 @@ function onWindowResize() {
 // 	createObjects();
 // }
 const sliderRanges = {
-	ballRadius: { min: 0.1, max: 2, step: 0.05 },
-	ballWidthSegments: { min: 3, max: 20, step: 1 },
-	ballHeightSegments: { min: 3, max: 20, step: 1 },
-	ballMass: { min: 0.1, max: 10, step: 0.1 },
-	ballFriction: { min: 0.1, max: 10, step: 0.1 },
-	ropeSegmentsCount: { min: 1, max: 10, step: 1 },
-	ropeLength: { min: 1, max: 10, step: 1 },
-	ropeElastic: { min: 0.1, max: 10, step: 0.1 },
-	moveSpeed: { min: 0.1, max: 10, step: 0.1 },
-	influence: { min: 0.1, max: 10, step: 0.1 },
+	ballRadius: {min: 0.1, max: 2, step: 0.05},
+	ballWidthSegments: {min: 3, max: 20, step: 1},
+	ballHeightSegments: {min: 3, max: 20, step: 1},
+	ballMass: {min: 0.1, max: 10, step: 0.1},
+	ballFriction: {min: 0.1, max: 10, step: 0.1},
+	ropeSegmentsCount: {min: 1, max: 10, step: 1},
+	ropeLength: {min: 1, max: 10, step: 1},
+	ropeElastic: {min: 0.1, max: 10, step: 0.1},
+	moveSpeed: {min: 0.1, max: 10, step: 0.1},
+	influence: {min: 0.1, max: 10, step: 0.1},
 };
 
 function initSettingsControls() {
 	const container = document.getElementById("divsliders");
-	if(!container) return;
+	if (!container) return;
 	container.replaceChildren();
 	for (const [id, defaultValue = "0"] of Object.entries(settings)) {
-		const range = sliderRanges[id] ?? { min: 0, max: 100, step: 1 };
+		const range = sliderRanges[id] ?? {min: 0, max: 100, step: 1};
 		const wrapper = document.createElement("div");
 		const label = document.createElement("label");
 		label.htmlFor = id;
@@ -664,8 +664,7 @@ function init() {
 		initInput();
 		initSettingsControls();
 		initialized = true;
-	}
-	catch (e) {
+	} catch (e) {
 		alert(e)
 	}
 }
