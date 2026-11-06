@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import Ammo from 'ammojs-typed';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {PerspectiveCamera} from "three";
 
 const AmmoLib = await Ammo.call({});
 const timer = new THREE.Timer();
 
-const Camera = new THREE.PerspectiveCamera(
-	50, window.innerWidth / window.innerHeight, 0.1, 200
+const Camera = new PerspectiveCamera(
+	60, window.innerWidth / window.innerHeight, 0.1, 300
 );
 const Renderer = new THREE.WebGLRenderer({
 	antialias: false
@@ -17,7 +18,7 @@ const Scene = new THREE.Scene();
 const CubeLoader = new THREE.CubeTextureLoader();
 const TextureLoader = new THREE.TextureLoader();
 
-const baseMaterial = new THREE.MeshPhongMaterial({color: 0x606060});
+const baseMaterial = new THREE.MeshPhongMaterial({color: 0xffffff});
 const ropeMaterial = new THREE.LineBasicMaterial({color: 0x000000});
 
 const gravityConstant = -9.8;
@@ -69,8 +70,6 @@ const settings = {
 function initGraphics() {
 	if (!graphContent) return;
 
-	Camera.position.set(0, 5, 10);
-
 	Scene.add(new THREE.AmbientLight(0xbbbbbb));
 
 	const light = new THREE.DirectionalLight(0xffffff, 3);
@@ -92,8 +91,9 @@ function initGraphics() {
 	graphContent.appendChild(Renderer.domElement);
 	Renderer.setAnimationLoop(animate);
 
+	Camera.position.set(0, 1, 6);
 	controls = new OrbitControls(Camera, Renderer.domElement);
-	controls.target.set(0, 5, 0);
+	controls.target.set(0, 2, 0);
 	controls.update();
 
 	window.addEventListener('resize', onWindowResize);
@@ -368,34 +368,25 @@ function Toys(x, y, z) {
 }
 
 function Machine() {
-	const thickness = 0.1;
+	const thickness = 0.02;
 	const length = 10;
 
-	pos.set(0, -thickness, 0);
-	const base = createBoxObject(
-		length / 2, thickness, length / 2, 0,
-		pos, quat, baseMaterial);
-	base.castShadow = false;
-	base.receiveShadow = false;
+	const matGlass = new THREE.MeshPhongMaterial({
+		color: 0xffffff,
+		transparent: true,
+		opacity: .5,
+	});
 
-	// pos.set(0, -thickness / 2, 0);
-	// ground = createBoxObject(length, thickness, length, 0,
-	// 	pos, 0,
-	// 	new THREE.MeshPhongMaterial({ color: 0xffffff,  })
-	// );
-	// ground.castShadow = false;
-	// ground.receiveShadow = false;
+	pos.set(0, 0, 0);
+	quat.set(0,0,0,0);
+	ground = createBoxObject(
+		length, thickness, length, 0,
+		pos, quat, matGlass);
 
-	// const matGlass = new THREE.MeshPhongMaterial({
-	// 	color: 0xffffff,
-	// 	transparent: true,
-	// 	opacity: 0.25,
-	// });
-	//
-	// pos.set(-length / 2, length / 2, 0);
-	// ground.attach(createBoxObject(thickness, length, length, 0,
-	// 	pos,
-	// 	matGlass));
+	pos.set(-length / 2, length / 2, 0);
+	quat.set(0,0,0,0);
+	ground.attach(createBoxObject(thickness, length, length, 0,
+		pos, quat, matGlass));
 	//
 	// pos.set(length / 2, length / 2, 0);
 	// ground.attach(createBoxObject(thickness, length, length, 0,
