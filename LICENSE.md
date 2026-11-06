@@ -13,7 +13,7 @@ Este software e todos os arquivos associados (o "Software") são de propriedade 
 * **Publicar ou disponibilizar** o código-fonte em repositórios públicos, redes de compartilhamento de arquivos ou qualquer outro meio acessível ao público.
 
 ## 3. Exceções e Autorizações
-Qualquer uso, reprodução ou modificação que não esteja explicitamente autorizado por este documento exigirá o consentimento prévio, por escrito, do titular dos direitos autorais ([Seu Nome ou Nome da Empresa]).
+Qualquer uso, reprodução ou modificação que não esteja explicitamente autorizado por este documento exigirá o consentimento prévio, por escrito, do titular dos direitos autorais (EDUARDO PICOLO XAVIER - 3zd.fun).
 
 ## 4. Rescisão de Acesso
 A violação de qualquer um dos termos desta licença resultará na revogação imediata e automática do seu direito de acesso ou posse do Software, sem prejuízo de quaisquer outras medidas legais cabíveis.
