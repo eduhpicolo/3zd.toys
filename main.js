@@ -6,7 +6,7 @@ const AmmoLib = await Ammo.call({});
 const timer = new THREE.Timer();
 
 const Camera = new THREE.PerspectiveCamera(
-	90, window.innerWidth / window.innerHeight, 0.1, 100
+	50, window.innerWidth / window.innerHeight, 0.1, 200
 );
 const Renderer = new THREE.WebGLRenderer({
 	antialias: false
@@ -84,7 +84,7 @@ function initGraphics() {
 		'images/00.png',
 		'images/00.png',
 		'images/00.png',
-		'images/00.png',
+		'images/0.png',
 	]);
 
 	Renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -195,8 +195,9 @@ function initInput() {
 }
 
 function initObjects() {
-	pos.set(0, 5, 0);
-	quat.set
+	pos.set(0, 0, 0);
+	quat.set(0, 0, 0, 1);
+
 	Machine();
 	// Mechanism(-4, 9, -4);
 	// Toys(0, 5, -5);
@@ -307,7 +308,7 @@ function Grape() {
 
 function Mechanism(x, y, z) {
 	pos.set(x, y, z);
-	quat.set(0, 0, 0, 1);
+
 	arm = createBoxObject(.1, .1, .1, 0, pos, quat, baseMaterial);
 	arm.castShadow = false;
 	arm.receiveShadow = false;
@@ -323,7 +324,6 @@ function Mechanism(x, y, z) {
 
 function Toys(x, y, z) {
 	pos.set(x, y, z);
-	quat.set(0, 0, 0, 1);
 	const brickMass = 1;
 	const brickLength = 1;
 	const brickDepth = 1;
@@ -373,7 +373,7 @@ function Machine() {
 
 	pos.set(0, -thickness, 0);
 	const base = createBoxObject(
-		length / 2, length, thickness / 2, 0,
+		length / 2, thickness, length / 2, 0,
 		pos, quat, baseMaterial);
 	base.castShadow = false;
 	base.receiveShadow = false;
@@ -487,49 +487,6 @@ function setTexture(object) {
 	});
 }
 
-function moveArm(deltaTime) {
-	if (!armBody) return;
-
-	if (movement.x === 0 && movement.y === 0 && movement.z === 0) return;
-
-	const length = Math.hypot(movement.x, movement.y, movement.z);
-	const scale = length > 1 ? 1 / length : 1;
-
-	const current = armBody.getWorldTransform().getOrigin();
-
-	armPosition.setValue(
-		current.x() + movement.x * scale * settings.moveSpeed * deltaTime,
-		current.y() + movement.y * scale * settings.moveSpeed * deltaTime,
-		current.z() + movement.z * scale * settings.moveSpeed * deltaTime
-	);
-
-	armTransform.setIdentity();
-	armTransform.setOrigin(armPosition);
-	armTransform.setRotation(armBody.getWorldTransform().getRotation());
-	armBody.setWorldTransform(armTransform);
-
-	const motionState = armBody.getMotionState();
-	if (motionState) {
-		motionState.setWorldTransform(armTransform);
-	}
-
-	arm.position.set(armPosition.x(), armPosition.y(), armPosition.z());
-}
-
-function animate() {
-	if (!initialized) return;
-	timer.update();
-	render();
-}
-
-function render() {
-	const deltaTime = Math.min(timer.getDelta(), 0.1);
-	updatePhysics(deltaTime);
-	Renderer.render(Scene, Camera);
-	if (!initialized)
-		alert(initialized)
-}
-
 function updatePhysics(deltaTime) {
 	physicsWorld.stepSimulation(deltaTime, 5);
 	if (rope && rope.userData.physicsBody) {
@@ -573,6 +530,49 @@ function updatePhysics(deltaTime) {
 		);
 	}
 	moveArm();
+}
+
+function moveArm(deltaTime) {
+	if (!armBody) return;
+
+	if (movement.x === 0 && movement.y === 0 && movement.z === 0) return;
+
+	const length = Math.hypot(movement.x, movement.y, movement.z);
+	const scale = length > 1 ? 1 / length : 1;
+
+	const current = armBody.getWorldTransform().getOrigin();
+
+	armPosition.setValue(
+		current.x() + movement.x * scale * settings.moveSpeed * deltaTime,
+		current.y() + movement.y * scale * settings.moveSpeed * deltaTime,
+		current.z() + movement.z * scale * settings.moveSpeed * deltaTime
+	);
+
+	armTransform.setIdentity();
+	armTransform.setOrigin(armPosition);
+	armTransform.setRotation(armBody.getWorldTransform().getRotation());
+	armBody.setWorldTransform(armTransform);
+
+	const motionState = armBody.getMotionState();
+	if (motionState) {
+		motionState.setWorldTransform(armTransform);
+	}
+
+	arm.position.set(armPosition.x(), armPosition.y(), armPosition.z());
+}
+
+function animate() {
+	if (!initialized) return;
+	timer.update();
+	render();
+}
+
+function render() {
+	const deltaTime = Math.min(timer.getDelta(), 0.1);
+	updatePhysics(deltaTime);
+	Renderer.render(Scene, Camera);
+	if (!initialized)
+		alert(initialized)
 }
 
 function onWindowResize() {
