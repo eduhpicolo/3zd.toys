@@ -30,7 +30,7 @@ let arm;
 let armBody;
 let armTransform = new AmmoLib.btTransform();
 let armPosition = new AmmoLib.btVector3(0, 0, 0);
-
+let ball;
 const rigidBodies = [];
 const physicsBodies = [];
 const softBodies = [];
@@ -40,7 +40,7 @@ const pos = new THREE.Vector3();
 const quat = new THREE.Quaternion();
 
 let ground;
-let ball;
+let grape;
 let rope;
 let body;
 
@@ -208,23 +208,70 @@ function initInput() {
 
 function initObjects() {
 	Machine();
-	Mechanism();
 	Toys();
+	Mechanism();
 }
 
-function Mechanism() {
-	pos.set(3,3,3);
-	quat.set(0,0,0,1);
-	arm = createBoxObject(1, 1, 1, 0,
-		pos, quat, baseMaterial);
-	armBody = arm.userData.physicsBody;
-	armBody.setCollisionFlags(armBody.getCollisionFlags() | 2); // kinematic
-	armBody.setActivationState(4);
-	ball = createBoxObject(1,1,1, 1, pos, quat);
+function createRigidBody(threeObject, physicsShape, mass, pos, quat) {
+	threeObject.position.copy(pos);
+	threeObject.quaternion.copy(quat);
+
+	const transform = new AmmoLib.btTransform();
+	transform.setIdentity();
+	const origin = new AmmoLib.btVector3(pos.x, pos.y, pos.z);
+	const rotation = new AmmoLib.btQuaternion(quat.x, quat.y, quat.z, quat.w);
+	transform.setOrigin(origin);
+	transform.setRotation(rotation);
+
+	const localInertia = new AmmoLib.btVector3(0, 0, 0);
+	physicsShape.calculateLocalInertia(mass, localInertia);
+
+	const motionState = new AmmoLib.btDefaultMotionState(transform);
+	const rbInfo = new AmmoLib.btRigidBodyConstructionInfo(
+		mass, motionState, physicsShape, localInertia
+	);
+
+	body = new AmmoLib.btRigidBody(rbInfo);
+	threeObject.userData.physicsBody = body;
+
+	physicsBodies.push(body);
+	physicsWorld.addRigidBody(body);
+	objectMeshes.push(threeObject);
+	if (mass > 0) rigidBodies.push(threeObject);
+
+	AmmoLib.destroy(origin);
+	AmmoLib.destroy(rotation);
+	AmmoLib.destroy(transform);
+	AmmoLib.destroy(localInertia);
+	AmmoLib.destroy(rbInfo);
+
+	Scene.add(threeObject);
+}
+
+
+function Grape() {
+	const sphere = {
+		radius: 1,
+		widthSegments: 32,
+		heightSegments: 16,
+		phiStart: 0,
+		phiLength: Math.PI,
+		thetaStart: 0,
+		thetaLength: Math.PI
+	};
+	pos.set(0, 5, 0);
+	ball = new THREE.Mesh(
+		new THREE.SphereGeometry(sphere.radius, sphere.widthSegments, sphere.heightSegments),
+		baseMaterial
+	);
+	const ballShape = new AmmoLib.btSphereShape(sphere.ballRadius);
+
+	createRigidBody(ball, ballShape, settings.ballMass, pos, quat);
 	ball.userData.physicsBody.setFriction(settings.ballFriction);
 	ball.userData.physicsBody.setActivationState(4);
 
 	const ropePos = ball.position.clone();
+	ropePos.y += settings.ballRadius;
 	const ropeGeometryTop = ropePos.y + settings.ropeLength;
 	const segmentLength = settings.ropeLength / settings.ropeSegmentsCount;
 
@@ -302,6 +349,23 @@ function Mechanism() {
 	Scene.add(rope);
 }
 
+function Mechanism() {
+	pos.set(1, 8, 1);
+	quat.set(0, 0, 0, 1);
+	arm = createBoxObject(1, 1, 1, 0, pos, quat, baseMaterial);
+	arm.castShadow = false;
+	arm.receiveShadow = false;
+
+	armBody = arm.userData.physicsBody;
+	armBody.setCollisionFlags(armBody.getCollisionFlags() | 2); // kinematic
+	armBody.setActivationState(4);
+	armTransform = new AmmoLib.btTransform();
+	armPosition = new AmmoLib.btVector3(0, 0, 0);
+
+	Grape();
+}
+
+
 const toys = new Map();
 const quantity = 30;
 function Toys() {
@@ -322,9 +386,9 @@ function Machine() {
 	quat.set(0, 0, 0, 1);
 
 	const matGlass = new THREE.MeshPhongMaterial({
-		color: "white",
+		color: "grey",
 		transparent: true,
-		opacity: .5,
+		opacity: .3,
 	});
 
 	pos.set(0, -thickness, -1);
@@ -360,6 +424,7 @@ function Machine() {
 }
 
 function createSphereObject(sx, sy, sz, mass, pos, quat, material) {
+
 	const threeObject = new THREE.Mesh(
 		new THREE.Sphere(sx, sy, sz), material
 	);
